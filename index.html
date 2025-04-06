@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Banker's Algorithm</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body onload="loadDefaults()">
+    <div class="container">
+        <h2>Banker's Algorithm</h2>
+        <label>Enter Number of Processes:</label>
+        <input type="number" id="numProcesses" min="1" value="5">
+        <label>Enter Number of Resources:</label>
+        <input type="number" id="numResources" min="1" value="3">
+        <button onclick="generateInputs()">Generate Input Fields</button>
+        <div id="inputFields"></div>
+        <button onclick="checkSafety()">Check Safe State</button>
+        <p id="result"></p>
+        <div id="requestSection" style="display: none;">
+            <h3>Resource Request</h3>
+            <label>Enter Process Number:</label>
+            <input type="number" id="requestProcess" min="0">
+            <label>Enter Request Array:</label>
+            <input type="text" id="requestArray" placeholder="E.g. 1,0,2">
+            <button onclick="resourceRequest()">Process Request</button>
+            <p id="requestResult"></p>
+        </div>
+    </div>
+    <script>
+        let globalData = {};
+
+        let defaultData = {
+            numProcesses: 5,
+            numResources: 3,
+            available: "3,3,2",
+            maxResources: [
+                "7,5,3", "3,2,2", "9,0,2", "2,2,2", "4,3,3"
+            ],
+            allocatedResources: [
+                "0,1,0", "2,0,0", "3,0,2", "2,1,1", "0,0,2"
+            ]
+        };
+        
+        function loadDefaults() {
+            document.getElementById("numProcesses").value = defaultData.numProcesses;
+            document.getElementById("numResources").value = defaultData.numResources;
+            generateInputs(true);
+        }
+        
+        function generateInputs(useDefaults = false) {
+            let p = document.getElementById("numProcesses").value;
+            let r = document.getElementById("numResources").value;
+            let div = document.getElementById("inputFields");
+            div.innerHTML = "";
+            
+            div.innerHTML += `<label>Available Resources:</label>`;
+            div.innerHTML += `<input type="text" id="avail" placeholder="E.g. 3,3,2" value="${useDefaults ? defaultData.available : ''}">`;
+            
+            let tableHtml = "<table><tr><th>Process</th><th>Max Resources</th><th>Allocated Resources</th></tr>";
+            for (let i = 0; i < p; i++) {
+                let maxVal = useDefaults ? defaultData.maxResources[i] : "";
+                let allocVal = useDefaults ? defaultData.allocatedResources[i] : "";
+                tableHtml += `<tr>
+                    <td>P${i}</td>
+                    <td><input type="text" id="max${i}" placeholder="E.g. 7,5,3" value="${maxVal}"></td>
+                    <td><input type="text" id="alloc${i}" placeholder="E.g. 0,1,0" value="${allocVal}"></td>
+                </tr>`;
+            }
+            tableHtml += "</table>";
+            div.innerHTML += tableHtml;
+        }
+        
+        function checkSafety() {
+            let P = parseInt(document.getElementById("numProcesses").value);
+            let R = parseInt(document.getElementById("numResources").value);
+            let avail = document.getElementById("avail").value.split(',').map(Number);
+            let maxm = [], allot = [];
+            for (let i = 0; i < P; i++) {
+                maxm.push(document.getElementById(`max${i}`).value.split(',').map(Number));
+                allot.push(document.getElementById(`alloc${i}`).value.split(',').map(Number));
+            }
+            
+            let need = Array.from({ length: P }, (_, i) => maxm[i].map((val, j) => val - allot[i][j]));
+            let finish = Array(P).fill(false);
+            let safeSeq = [];
+            let work = [...avail];
+            let count = 0;
+            
+            while (count < P) {
+                let found = false;
+                for (let p = 0; p < P; p++) {
+                    if (!finish[p] && need[p].every((n, j) => n <= work[j])) {
+                        work = work.map((w, j) => w + allot[p][j]);
+                        safeSeq.push(p);
+                        finish[p] = true;
+                        found = true;
+                        count++;
+                    }
+                }
+                if (!found) {
+                    document.getElementById("result").innerText = "System is not in a safe state";
+                    return;
+                }
+            }
+            document.getElementById("result").innerText = "System is in a safe state. Safe sequence: " + safeSeq.join(" → ");
+            document.getElementById("requestSection").style.display = "block";
+            globalData = { P, R, avail, maxm, allot, need };
+        }
+
+        function resourceRequest() {
+            let process = parseInt(document.getElementById("requestProcess").value);
+            let request = document.getElementById("requestArray").value.split(',').map(Number);
+            let { P, R, avail, maxm, allot, need } = globalData;
+            
+            if (request.some((r, j) => r > need[process][j])) {
+                document.getElementById("requestResult").innerText = "Error: Process exceeded its maximum claim.";
+                return;
+            }
+            if (request.some((r, j) => r > avail[j])) {
+                document.getElementById("requestResult").innerText = "Process must wait: Not enough resources available.";
+                return;
+            }
+            
+            avail = avail.map((a, j) => a - request[j]);
+            allot[process] = allot[process].map((a, j) => a + request[j]);
+            need[process] = need[process].map((n, j) => n - request[j]);
+            
+            document.getElementById("requestResult").innerText = "Request granted and resources allocated.";
+            globalData = { P, R, avail, maxm, allot, need };
+        }
+    </script>
+</body>
+</html>
